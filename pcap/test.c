@@ -37,12 +37,12 @@ int main()
 	}
 
 	// Step 3: Filtering packets
-	pcap_compile(handle, &fp, filter_exp, 0, net); // Compile the filter expression into a BPF filter program  
-	pcap_setfilter(handle, &fp); // 
+	pcap_compile(handle, &fp, filter_exp, 0, net);
+	pcap_setfilter(handle, &fp);
 
 	// Step 4: Start capture packets
-	pcap_loop(handle, -1, got_packet, NULL);
-
+	pcap_loop(handle, -1, got_packet, NULL); // Capture packets and call got_packet() for each packet captured
+	
 	// Step 5: Close session
 	pcap_close(handle);   //Close the handle
 	return 0;
