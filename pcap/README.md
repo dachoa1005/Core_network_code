@@ -1,3 +1,4 @@
+
 1. open terminal, cd to ./pcap/ 
 2. make
 3. sudo ./test để chạy chương trình 
@@ -7,12 +8,12 @@ Các step để bắt đầu capture packets\
 ```C
 char *dev = pcap_lookupdev(errbuf);
 ```
-pcap_lookupdev(errbuf) tìm 1 device để capture gói tin:\
+`pcap_lookupdev(errbuf)` tìm 1 device để capture gói tin:\
     Nếu success, hàm trả về 1 con trỏ khác null trỏ vào ô nhớ chứa tên của device.\
-    Nêu fail, hàm trả về con trỏ null và error message được lưu vào errbuf.
+    Nêu fail, hàm trả về con trỏ null và error message được lưu vào errbuf.\
 
-**step 2: Open device for capturing.**
-2.1 Cho pcap biết mình đang sniff ở device nào \
+**step 2: Open device for capturing.**\
+2.1 Cho pcap biết mình đang sniff ở device nào.\
 ```C
 // nguyên mẫu hàm:
 pcap_t *pcap_open_live(const char *device, int snaplen,
@@ -45,12 +46,19 @@ int pcap_setfilter(pcap_t *p, struct bpf_program *fp);
 
 pcap_setfilter(handle, &fp);
 ```
-pcap_setfilter() dùng set the filter program as the filter for the pcap handle
-**step 4: Start capture packets**
+`pcap_setfilter()` dùng set the filter program as the filter for the pcap handle\
+**step 4: Start capture packets**\
 ```C
 int pcap_loop(pcap_t *p, int cnt,
         pcap_handler callback, u_char *user);
 
 pcap_loop(handle, -1, got_packet, NULL);
 ```
+pcap_loop() đọc và xử lý các packets.\
+`callback` đươc gọi mỗi khi `pcap_loop()` captures được 1 gói tin.\
+`cnt`: -1 nghĩa là loop vô hạn, 0: loop 1 lần, n: loop n lần.
 
+**step 5: Close session**
+```C
+pcap_close(handle);
+```
