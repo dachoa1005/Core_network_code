@@ -1,5 +1,5 @@
 # libnet
-Libnet là một API(toolkit) cấp cao cho phép lập trình viên xây dựng và inject network packets. Nó cung cấp portable framework dể  viết và xử lý gói mạng cấp thấp (low-level network packet) 
+Libnet là một API(toolkit) cấp cao cho phép lập trình viên xây dựng và inject network packets trong môi trường LINUX. Nó cung cấp portable framework dể  viết và xử lý gói mạng cấp thấp (low-level network packet) 
 
 Các bước để tạo gói tin ICMP dử dụng libneb
 
