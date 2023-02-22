@@ -14,7 +14,7 @@ int main()
      int bytes_written;
      int i;
      libnet_ptag_t ip_tag, icmp_tag;
-     char *dev, pcap_errbuf[PCAP_ERRBUF_SIZE];
+     // char *dev, pcap_errbuf[PCAP_ERRBUF_SIZE];
 
      // dev = pcap_lookupdev(pcap_errbuf);
 	// if (dev == NULL) {
@@ -34,7 +34,7 @@ int main()
      id = (u_int16_t)libnet_get_prand(LIBNET_PR16);
 
      /* Getting destination IP address */
-     dst_ip = libnet_name2addr4(l, "192.168.10.194", LIBNET_DONT_RESOLVE); 
+     dst_ip = libnet_name2addr4(l, "192.168.131.1", LIBNET_DONT_RESOLVE); 
      src_ip = libnet_name2addr4(l, "192.168.131.130", LIBNET_DONT_RESOLVE);
 
      if ( dst_ip == -1 || src_ip == -1 ) {
