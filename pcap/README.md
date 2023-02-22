@@ -1,11 +1,9 @@
 #libpcap
-
 Libpcap là một thư viện dùng trong cho capture và process network packets. Nó cung cấp 1 API phổ biến được sử dụng rộng rãi trong các công cụ bảo mật và giám sát. 
-1. open terminal, cd to ./pcap/ 
-2. make
-3. sudo ./test để chạy chương trình 
 
-Các step để bắt đầu capture packets\
+Tương tự với libpcap, **winpcap** cũng là thư viện mã nguồn mở dùng để capture và phân tích packet dành cho Windows. Nó cho phép các ứng dụng mạng capture và truyền các gói tin bỏ qua protocol stack và đã được các chuyên gia và nhà nghiên cứu mạng sử dụng rộng rãi cho các mục đích khắc phục sự cố, phân tích và bảo mật mạng.\
+
+Các step để bắt đầu capture packets sử dụng libpcap.\
 **step 1: Find/select a default device to sniff on .**
 ```C
 char *dev = pcap_lookupdev(errbuf);
