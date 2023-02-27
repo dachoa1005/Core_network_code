@@ -1,0 +1,3 @@
+viết 1 chương trình capture traffic trên interface, bpf_filter (viết filter vào file, đọc từ file)cho traffice đấy (lọc traffice)
+parse thông tin của traffice ra (giao thức, source, host, địa chỉ MAC)
+--> log ra 1 file (chỉ log giao thức của tầng application và giao thức icmp).
