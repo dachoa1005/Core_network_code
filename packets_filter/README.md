@@ -47,7 +47,6 @@ pcap_loop(handle, -1, process_packet, NULL);
 ```
 
 `process_packet()` đươc gọi mỗi khi capture được 1 packet thỏa mãn filter:\
-Trong hàm `process_packet()`\
 Lấy ra `ethernet_header` để từ đó kiểm tra xem đây có phải là IP packet hay không\
 ```C
 ethernet_header = (struct ether_header *)packet;
