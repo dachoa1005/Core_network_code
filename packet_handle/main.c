@@ -9,27 +9,65 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
+#include <string.h>
 
 void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet);
 
 int main(int argc, char *argv[])
 {
     char errbuf[PCAP_ERRBUF_SIZE];
-    char *dev, *bpf_filter, *filter_file;
+    char *dev,  *filter_file;
     pcap_t *handle;
     struct bpf_program fp;
+    char *filter_exp;
     bpf_u_int32 mask, net;
     int num_packets;
+    long size;
 
-    if (argc != 4)
+    if (argc != 2)
     {
-        printf("Usage: %s interface bpf_filter filter_file\n", argv[0]);
+        printf("Usage: %s interface\n", argv[0]);
         exit(1);
     }
 
     dev = argv[1];
-    bpf_filter = argv[2];
-    filter_file = argv[3];
+    
+    // read filter file in to filter_exp
+    FILE *file = fopen("filter.bpf", "r");
+    if (file == NULL)
+    {
+        printf("Error opening filter file\n");
+        exit(1);
+    }
+
+     // Determine the size of the file
+    fseek(file, 0, SEEK_END);
+    size = ftell(file);
+    rewind(file);
+
+    // Allocate memory to hold the filter expression
+    filter_exp = malloc(size + 1);
+    if (filter_exp == NULL) {
+        fprintf(stderr, "Error allocating memory\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Read the filter expression from the file
+    if (fread(filter_exp, 1, size, file) != size) {
+        fprintf(stderr, "Error reading filter file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Add a null terminator to the filter expression
+    filter_exp[size] = '\0';
+
+    // Print the filter expression
+    printf("%s\n", filter_exp);
+
+    // Close the filter file
+    fclose(file);
+
+    
 
     if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1)
     {
@@ -45,7 +83,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    if (pcap_compile(handle, &fp, bpf_filter, 0, net) == -1)
+    if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1)
     {
         printf("Error compiling BPF filter: %s\n", pcap_geterr(handle));
         exit(1);
@@ -58,9 +96,9 @@ int main(int argc, char *argv[])
     }
 
     // pcap_freealldevs(alldevs);
-    pcap_freefilter(&fp);
+    // pcap_freefilter(&fp);
 
-    pcap_loop(handle, num_packets, process_packet, (u_char *)filter_file);
+    pcap_loop(handle, num_packets, process_packet, NULL);
 
     pcap_close(handle);
 
@@ -69,76 +107,25 @@ int main(int argc, char *argv[])
 
 void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 {
-    char *filter_file = (char *)args;
     struct ether_header *ethernet_header;
     struct ip *ip_header;
-    struct tcphdr *tcp_header;
-    struct udphdr *udp_header;
-    struct icmphdr *icmp_header;
-    int ethernet_header_length, ip_header_length, tcp_header_length, udp_header_length, icmp_header_length;
-    const u_char *payload;
-    int payload_length;
+    int ethernet_header_length, ip_header_length;
     char source_ip[INET_ADDRSTRLEN], dest_ip[INET_ADDRSTRLEN];
     FILE *fp;
 
     ethernet_header = (struct ether_header *)packet;
     ethernet_header_length = sizeof(struct ether_header);
 
-    if (ntohs(ethernet_header->ether_type) == ETHERTYPE_IP)
+    if (ntohs(ethernet_header->ether_type) == ETHERTYPE_IP) // only process IP packets
     {
         ip_header = (struct ip *)(packet + ethernet_header_length);
         ip_header_length = ip_header->ip_hl * 4;
 
-        if (ip_header->ip_p == IPPROTO_TCP)
-        {
-            tcp_header = (struct tcphdr *)(packet + ethernet_header_length + ip_header_length);
-            tcp_header_length = tcp_header->th_off * 4;
-
-            payload = packet + ethernet_header_length + ip_header_length + tcp_header_length;
-            payload_length = ntohs(ip_header->ip_len) - ip_header_length - tcp_header_length;
-
-            // Log TCP payload if it contains application layer protocol data
-            if (payload_length > 0)
-            {
-                if (strncmp(filter_file, "tcp", 3) == 0)
-                {
-                    fp = fopen("log.txt", "a");
-                    fprintf(fp, "TCP: %.*s\n", payload_length, payload);
-                    fclose(fp);
-                }
-            }
-        }
-        else if (ip_header->ip_p == IPPROTO_UDP)
-        {
-            udp_header = (struct udphdr *)(packet + ethernet_header_length + ip_header_length);
-            udp_header_length = sizeof(struct udphdr);
-
-            payload = packet + ethernet_header_length + ip_header_length + udp_header_length;
-            payload_length = ntohs(udp_header->uh_ulen) - udp_header_length;
-
-            // Log UDP payload if it contains application layer protocol data
-            if (payload_length > 0)
-            {
-                if (strncmp(filter_file, "udp", 3) == 0)
-                {
-                    fp = fopen("log.txt", "a");
-                    fprintf(fp, "UDP: %.*s\n", payload_length, payload);
-                    fclose(fp);
-                }
-            }
-        }
-        else if (ip_header->ip_p == IPPROTO_ICMP)
-        {
-            icmp_header = (struct icmphdr *)(packet + ethernet_header_length + ip_header_length);
-            icmp_header_length = sizeof(struct icmphdr);
-
-            // Log ICMP packet
-            if (strncmp(filter_file, "icmp", 4) == 0)
-            {
-                fp = fopen("log.txt", "a");
-                fprintf(fp, "ICMP: type=%d, code=%d\n", icmp_header->type, icmp_header->code);
-                fclose(fp);
-            }
+        // Convert protocol_number into name
+        struct protoent *protocol = getprotobynumber(ip_header->ip_p);
+        if (protocol == NULL) {
+            printf("Error: Unknown protocol number\n");
+            return;
         }
 
         // Convert source and destination IP addresses to strings
@@ -147,8 +134,8 @@ void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char
 
         // Log packet information
         fp = fopen("log.txt", "a");
-        fprintf(fp, "Protocol: %d, Source IP: %s, Destination IP: %s, Source MAC: %02x:%02x:%02x:%02x:%02x:%02x, Destination MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
-                ip_header->ip_p, source_ip, dest_ip,
+        fprintf(fp, "Protocol: %s, Source IP: %15s, Destination IP: %15s, Source MAC: %02x:%02x:%02x:%02x:%02x:%02x, Destination MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                protocol->p_name, source_ip, dest_ip,
                 ethernet_header->ether_shost[0], ethernet_header->ether_shost[1], ethernet_header->ether_shost[2],
                 ethernet_header->ether_shost[3], ethernet_header->ether_shost[4], ethernet_header->ether_shost[5],
                 ethernet_header->ether_dhost[0], ethernet_header->ether_dhost[1], ethernet_header->ether_dhost[2],
