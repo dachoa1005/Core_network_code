@@ -36,7 +36,7 @@ filter_exp[size] = '\0';
 pcap_compile(handle, &fp, filter_exp, 0, net);
 ```
 
-3.2 Set the filter\
+3.2 Set the filter
 ```C
 pcap_setfilter(handle, &fp);
 ```
@@ -52,7 +52,7 @@ Lấy ra `ethernet_header` để từ đó kiểm tra xem đây có phải là I
 ethernet_header = (struct ether_header *)packet;
 ```
 Sử dụng điều kiện `ntohs(ethernet_header->ether_type) == ETHERTYPE_IP` để chỉ thao tác với các IP packet\
-Lấy `ip_header` từ packet để từ đó lấy ra được các thông tin của file (source, dest IP, MAC, ...)\
+Lấy `ip_header` từ packet để từ đó lấy ra được các thông tin của file (source, dest IP, MAC, ...)
 ```C
 ip_header = (struct ip *)(packet + ethernet_header_length);
 ```
@@ -62,7 +62,7 @@ inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
 inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
 ```
 
-Convert protocol_number thành tên (ví dụ: protocol_name = 6 chuyển thành TCP)\
+Convert protocol_number thành tên (ví dụ: protocol_name = 6 chuyển thành TCP)
 ```C
 struct protoent *protocol = getprotobynumber(ip_header->ip_p);
 ```
