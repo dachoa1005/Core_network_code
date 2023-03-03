@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     struct bpf_program fp;
     char *filter_exp;
     bpf_u_int32 mask, net;
-    int num_packets;
+    int num_packets = -1;
     long size;
 
     if (argc != 2)
@@ -33,17 +33,17 @@ int main(int argc, char *argv[])
     dev = argv[1];
     
     // read filter file in to filter_exp
-    FILE *file = fopen("filter.bpf", "r");
-    if (file == NULL)
+    FILE *bpf_file = fopen("filter.bpf", "r");
+    if (bpf_file == NULL)
     {
         printf("Error opening filter file\n");
         exit(1);
     }
 
-     // Determine the size of the file
-    fseek(file, 0, SEEK_END);
-    size = ftell(file);
-    rewind(file);
+    // Determine the size of the file
+    fseek(bpf_file, 0, SEEK_END);
+    size = ftell(bpf_file);
+    rewind(bpf_file);
 
     // Allocate memory to hold the filter expression
     filter_exp = malloc(size + 1);
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     }
 
     // Read the filter expression from the file
-    if (fread(filter_exp, 1, size, file) != size) {
+    if (fread(filter_exp, 1, size, bpf_file) != size) {
         fprintf(stderr, "Error reading filter file\n");
         exit(EXIT_FAILURE);
     }
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     printf("%s\n", filter_exp);
 
     // Close the filter file
-    fclose(file);
+    fclose(bpf_file);
 
     
 
@@ -113,13 +113,17 @@ void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char
     char source_ip[INET_ADDRSTRLEN], dest_ip[INET_ADDRSTRLEN];
     FILE *fp;
 
-    ethernet_header = (struct ether_header *)packet;
-    ethernet_header_length = sizeof(struct ether_header);
+    ethernet_header = (struct ether_header *)packet; // get ethernet header
+    ethernet_header_length = sizeof(struct ether_header); // 
 
     if (ntohs(ethernet_header->ether_type) == ETHERTYPE_IP) // only process IP packets
     {
-        ip_header = (struct ip *)(packet + ethernet_header_length);
+        ip_header = (struct ip *)(packet + ethernet_header_length); // get ip header 
         ip_header_length = ip_header->ip_hl * 4;
+
+        // Convert source and destination IP addresses to strings (from format 32-bit integer to string)
+        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
 
         // Convert protocol_number into name
         struct protoent *protocol = getprotobynumber(ip_header->ip_p);
@@ -127,10 +131,6 @@ void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char
             printf("Error: Unknown protocol number\n");
             return;
         }
-
-        // Convert source and destination IP addresses to strings
-        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
-        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
 
         // Log packet information
         fp = fopen("log.txt", "a");
