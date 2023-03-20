@@ -96,19 +96,24 @@ int main(int argc, char **argv)
         }
 
         ssl = SSL_new(ctx);
-        SSL_set_fd(ssl, client);
+        // SSL_set_fd(ssl, client);
+        BIO *bio = BIO_new_socket(client, BIO_NOCLOSE);
+        SSL_set_bio(ssl, bio, bio);
 
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
         }
         // SSL_read(ssl, buf, sizeof(buf));
         // printf("Received: %s", buf);
-        bytes = SSL_read(ssl, buffer, sizeof(buffer));
-        buffer[bytes] = 0;
-        printf("Received: %s\n", buffer);
-
-        SSL_write(ssl, reply, strlen(reply));
     
+        do {
+            bytes = SSL_read(ssl, buffer, sizeof(buffer));
+            buffer[bytes] = 0;
+            if (bytes <= 0) continue;
+            printf("Received: %s\n", buffer);
+            SSL_write(ssl, buffer, strlen(buffer)); 
+    
+        } while(bytes > 0);
 
         SSL_shutdown(ssl);
         SSL_free(ssl);

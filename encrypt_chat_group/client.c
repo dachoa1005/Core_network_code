@@ -13,7 +13,8 @@ int main(int argc, char **argv)
     char buffer[1024];
     struct sockaddr_in serv_addr;
 
-    if (argc != 2) {
+    if (argc != 2)
+    {
         printf("Usage: %s <IP Address>\n", argv[0]);
         return 1;
     }
@@ -23,7 +24,8 @@ int main(int argc, char **argv)
     ctx = SSL_CTX_new(TLS_client_method());
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
+    if (sockfd < 0)
+    {
         perror("Unable to create socket");
         return 1;
     }
@@ -33,24 +35,28 @@ int main(int argc, char **argv)
     serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
     serv_addr.sin_port = htons(4433);
 
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
         perror("Unable to connect");
         return 1;
     }
 
     ssl = SSL_new(ctx);
     SSL_set_fd(ssl, sockfd);
-    if (SSL_connect(ssl) == -1) {
+    if (SSL_connect(ssl) == -1)
+    {
         ERR_print_errors_fp(stderr);
         return 1;
     }
 
-    SSL_write(ssl, "Hello, Server!", strlen("Hello, Server!"));
-
-    int bytes = SSL_read(ssl, buffer, sizeof(buffer));
-    buffer[bytes] = 0;
-    printf("Received: %s", buffer);
-
+    for (int i = 0; i < 10; i++)
+    {
+        SSL_write(ssl, "Hello, server!", strlen("Hello, server!"));
+        printf("Sent: Hello, server!\n");
+        int bytes = SSL_read(ssl, buffer, sizeof(buffer));
+        buffer[bytes] = 0;
+        printf("Received: %s\n", buffer);
+    }
     SSL_shutdown(ssl);
     SSL_free(ssl);
     close(sockfd);
