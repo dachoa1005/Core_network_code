@@ -1,32 +1,36 @@
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <pthread.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-#include <pthread.h>
 
 void *send_message(void *ssl)
 {
     SSL *client_ssl = (SSL *)ssl;
     char message[1024];
     int bytes;
+    
     // enter client name
-    while (1)
-    {
-        printf("Enter your name: ");
-        fgets(message, 1024, stdin);
-        message[strlen(message) - 1] = '\0';
-        if (strcmp(message, "") != 0)
-            break;
-    }
-
-    SSL_write(client_ssl, message, strlen(message));
+    // while (1)
+    // {
+    //     printf("Enter your name: \n");
+    //     fgets(message, 1024, stdin);
+    //     message[strlen(message) - 1] = '\0';
+    //     if (strcmp(message, "") != 0)
+    //         break;
+    // }
+    // printf("%s\n", message);
+    // SSL_write(client_ssl, message, strlen(message));
 
     // send message to server 
     while (1)
     {
-        fgets(message, 1024, stdin);
+        // fgets(message, 1024, stdin);
+        scanf("%[^\n]%*c", message);
         message[strlen(message) - 1] = '\0';
         if (strcmp(message, "") != 0)
             bytes = SSL_write(client_ssl, message, strlen(message));
