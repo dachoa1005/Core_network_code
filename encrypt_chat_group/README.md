@@ -5,7 +5,7 @@
 
 ## Khởi tạo key và certificate
 1. Khởi tạo khóa riêng tư (private key)
-```csharp
+```console
 openssl genrsa -out key.pem 2048
 ```
 ## Giải thích
