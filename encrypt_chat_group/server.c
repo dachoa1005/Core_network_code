@@ -75,7 +75,8 @@ void *connection_handle(void *ssl)
         }
     }
 
-    printf("%s has joined the chat\n", client_name);
+    if (strcmp(client_name, "")!= 0)
+        printf("%s has joined the chat\n", client_name);
 
     // recive from client and send to all other clients
     do
@@ -107,6 +108,9 @@ void *connection_handle(void *ssl)
             {
                 if (clients[i].ssl == ssl)
                 {
+                    printf("Client %s has socketfd: %d has disconnected\n",clients[i].name, clients[i].socket);
+                    // if (strcmp(clients[i].name, "")!= 0)
+                    // printf("%s has left the chat\n", clients[i].name);
                     clients[i].ssl = NULL;
                     clients[i].socket = -1;
                     free(clients[i].name);
