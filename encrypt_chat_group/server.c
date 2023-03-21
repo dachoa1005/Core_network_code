@@ -155,7 +155,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_sockfd, 1) < 0)
+    if (listen(server_sockfd, 100) < 0)
     {
         perror("Unable to listen");
         exit(EXIT_FAILURE);
@@ -172,6 +172,7 @@ int main(int argc, char **argv)
     /* Handle connections */
     while (1)
     {
+        printf("Waiting for new client connection\n");
         client_sockfd = accept(server_sockfd, (struct sockaddr *)&server_addr, (socklen_t *)&addrlen);
         if (client_sockfd < 0)
         {
@@ -208,7 +209,6 @@ int main(int argc, char **argv)
         //     pthread_join(threads[client_num], NULL);
         // }
         client_num += 1;
-
     }
     close(server_sockfd);
     SSL_CTX_free(ctx);
