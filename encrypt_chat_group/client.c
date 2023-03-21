@@ -8,6 +8,9 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#define PORT 8889
+#define IP_ADDRESS "127.0.0.1" 
+
 void *send_message(void *ssl)
 {
     SSL *client_ssl = (SSL *)ssl;
@@ -15,22 +18,22 @@ void *send_message(void *ssl)
     int bytes;
     
     // enter client name
-    // while (1)
-    // {
-    //     printf("Enter your name: \n");
-    //     fgets(message, 1024, stdin);
-    //     message[strlen(message) - 1] = '\0';
-    //     if (strcmp(message, "") != 0)
-    //         break;
-    // }
+    while (1)
+    {
+        printf("Enter your name: ");
+        fgets(message, 1024, stdin);
+        message[strlen(message) - 1] = '\0';
+        if (strcmp(message, "") != 0)
+            break;
+    }
     // printf("%s\n", message);
-    // SSL_write(client_ssl, message, strlen(message));
+    SSL_write(client_ssl, message, strlen(message));
 
     // send message to server 
     while (1)
     {
-        // fgets(message, 1024, stdin);
-        scanf("%[^\n]%*c", message);
+        fgets(message, 1024, stdin);
+        // gets(message);
         message[strlen(message) - 1] = '\0';
         if (strcmp(message, "") != 0)
             bytes = SSL_write(client_ssl, message, strlen(message));
@@ -74,13 +77,6 @@ int main(int argc, char **argv)
     char buffer[1024];
     pthread_t send_thread, recv_thread;
 
-
-    if (argc != 2)
-    {
-        printf("Usage: %s <IP Address>\n", argv[0]);
-        return 1;
-    }
-
     SSL_library_init();
 
     ctx = SSL_CTX_new(TLS_client_method());
@@ -95,8 +91,8 @@ int main(int argc, char **argv)
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-    serv_addr.sin_port = htons(4433);
+    serv_addr.sin_addr.s_addr = inet_addr(IP_ADDRESS);
+    serv_addr.sin_port = htons(PORT);
 
     if (connect(client_sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
@@ -123,6 +119,9 @@ int main(int argc, char **argv)
     pthread_create(&send_thread, NULL, send_message, (void *)ssl);
     pthread_create(&recv_thread, NULL, recv_message, (void *)ssl);
     
+    pthread_join(send_thread, NULL);
+    pthread_join(recv_thread, NULL);
+
     SSL_shutdown(ssl);
     SSL_free(ssl);
     close(client_sockfd);
