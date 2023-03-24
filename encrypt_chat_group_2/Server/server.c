@@ -1,142 +1,111 @@
 #include <stdio.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <pthread.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/rsa.h>
-#include <assert.h>
-#include <string.h>
 
+#define PORT 8080
+#define MAX_CLIENTS 100
+#define BUFFER_SIZE 1024
 
-// bool generate_key()
-// {
-//     int bits = 1024;
-//     int ret = 0;
-//     BIGNUM *bne = NULL;
-//     BIO *bp_public = NULL, *bp_private = NULL;
-
-//     unsigned long e = RSA_F4;
-
-//     // 1. generate rsa key
-//     bne = BN_new();
-//     ret = BN_set_word(bne, e);
-//     if (ret != 1)
-//     {
-//         goto free_all;
-//     }
-
-//     rsa = RSA_new();
-//     ret = RSA_generate_key_ex(rsa, bits, bne, NULL);
-//     if (ret != 1)
-//     {
-//         goto free_all;
-//     }
-
-//     // 2. save public key
-//     bp_public = BIO_new_file("public.pem", "w+");
-//     ret = PEM_write_bio_RSAPublicKey(bp_public, rsa);
-//     if (ret != 1)
-//     {
-//         goto free_all;
-//     }
-
-//     // 3. save private key
-//     bp_private = BIO_new_file("private.pem", "w+");
-//     ret = PEM_write_bio_RSAPrivateKey(bp_private, rsa, NULL, NULL, 0, NULL, NULL);
-//     if (ret != 1)
-//     {
-//         goto free_all;
-//     }
-
-//     // 4. free
-// free_all:
-//     BIO_free_all(bp_public);
-//     BIO_free_all(bp_private);
-//     RSA_free(rsa);
-//     BN_free(bne);
-
-//     return (ret == 1);
-// }
-
-
-
-int main(int argc, char *argv[])
+typedef struct
 {
-    int bits = 512;
-    int ret = 0;
-    BIGNUM *bne = NULL;
-    BIO *bp_public = NULL, *bp_private = NULL;
-    RSA *rsa = NULL;
+    int sockfd;
+    char *name;
+    RSA *rsa_pub_key;
+} Client;
 
-    unsigned long e = RSA_F4;
+Client clients[MAX_CLIENTS];
+int client_number = 0;
 
-    // 1. generate rsa key
-    bne = BN_new();
-    ret = BN_set_word(bne, e);
-    if (ret != 1)
+void *connection_handle (void *client_sockfd)
+{
+    int socket = *(int *)client_sockfd;
+    char buffer[BUFFER_SIZE];
+    char *client_name;
+    int read_len;
+    RSA *rsa;
+
+    // recive client public key
+    
+}
+
+int main(int argc, char const *argv[])
+{
+    // init clients array
+    for (int i = 0; i < MAX_CLIENTS; i++)
     {
-        goto free_all;
+        clients[i].sockfd = 0;
+        clients[i].rsa_pub_key = NULL;
+        clients[i].name = NULL;
     }
 
-    rsa = RSA_new();
-    ret = RSA_generate_key_ex(rsa, bits, bne, NULL);
-    if (ret != 1)
+    // init socket
+    int server_sockfd, client_sockfd;
+    struct sockaddr_in server_address, client_address;
+    int ser_addr_len = sizeof(server_address);
+    int cli_addr_len = sizeof(client_address);
+    char buffer[BUFFER_SIZE];
+    pthread_t threads[MAX_CLIENTS];
+
+    //create server socket
+    if ((server_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
     {
-        goto free_all;
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+    printf("Server socket created.\n");
+
+    // set socket
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_port = htons(PORT);
+
+    // bind socket
+    if (bind(server_sockfd, (struct sockaddr *)&server_address, ser_addr_len) < 0)
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+    printf("Socket bind to port %d successfully.\n", PORT);
+
+    // listen 
+    if (listen(server_sockfd, MAX_CLIENTS) < 0)
+    {
+        perror("listen");
+        exit(EXIT_FAILURE);
     }
 
-    // 2. save public key
-    bp_public = BIO_new_file("public.pem", "w+");
-    ret = PEM_write_bio_RSAPublicKey(bp_public, rsa);
-    if (ret != 1)
+    while (1)
     {
-        goto free_all;
+        pritnf("Waiting for new connection...\n");
+        // accept connection
+        client_sockfd = accept(server_sockfd, (struct sockaddr *)&server_address, (socklen_t *)&ser_addr_len);
+        if (client_sockfd < 0)
+        {
+            perror("accept");
+            exit(EXIT_FAILURE);
+        }
+
+        clients[client_number].sockfd = client_sockfd;
+        client_number += 1;
+        printf("Client has socketfd: %d has connected.\n\n", client_sockfd);
+
+        //create thread to handle each client
+        if (pthread_create(&threads[client_number], NULL, connection_handle, (void *)&client_sockfd)!=0)
+        {
+            perror("pthread_create");
+            exit(EXIT_FAILURE);
+        }
+
     }
 
-    // 3. save private key
-    bp_private = BIO_new_file("private.pem", "w+");
-    ret = PEM_write_bio_RSAPrivateKey(bp_private, rsa, NULL, NULL, 0, NULL, NULL);
-    if (ret != 1)
-    {
-        goto free_all;
-    }
 
-    // message to encrypt
-    const char *msg = "hello";
-    // size_t msglen = strlen(msg);
-
-    // encrypt message
-    char *enc_msg = NULL;
-    enc_msg = malloc(RSA_size(rsa));
-    printf("%s\n", msg);
-    printf("Size of enc_msg: %ld\n", sizeof(enc_msg));
-    int result = RSA_public_encrypt(strlen(msg)+1, (unsigned char *)msg, enc_msg, rsa, RSA_PKCS1_PADDING);
-    if (result == -1)
-    {
-        return EXIT_FAILURE;
-    }
-
-    int enc_len = result;
-    printf("Encrypt message: %s\n", enc_msg);
-    printf("\n");
-
-
-    //decrypt message
-    char *dec_msg = NULL;
-    dec_msg = malloc(RSA_size(rsa));
-    result = RSA_private_decrypt(RSA_size(rsa), enc_msg, dec_msg, rsa, RSA_PKCS1_PADDING);
-    if (result == -1)
-    {
-        return EXIT_FAILURE;
-    }
-
-    int dec_len = result;
-    printf("Decrypt message: %s\n", dec_msg);
-    printf("\n");
-        // 4. free
-free_all:
-    BIO_free_all(bp_public);
-    BIO_free_all(bp_private);
-    RSA_free(rsa);
-    BN_free(bne);
     return 0;
 }
