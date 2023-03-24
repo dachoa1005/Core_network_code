@@ -33,7 +33,13 @@ void *connection_handle (void *client_sockfd)
     RSA *rsa;
 
     // recive client public key
-    
+    for (int i=0 ; i < client_number; i++)
+    {
+        if (clients[i].sockfd == client_sockfd)
+        {
+            
+        }
+    }
 }
 
 int main(int argc, char const *argv[])
