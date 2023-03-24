@@ -9,10 +9,53 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/rsa.h>
+#include <assert.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 1024
+
+
+RSA *server_rsa_key;
+char *server_pub_key;
+int server_pub_key_len;
+
+void generate_key()
+{
+    int bits = 1024;
+    int ret = 0;
+    BIGNUM *bne = NULL;
+
+    unsigned long e = RSA_F4;
+
+    bne = BN_new();
+    ret = BN_set_word(bne, e);
+    if (ret != 1)
+    {
+        printf("Create RSA key fail.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    server_rsa_key = RSA_new();
+    ret = RSA_generate_key_ex(server_rsa_key, bits, bne, NULL);
+    if (ret != 1)
+    {
+        printf("Create RSA key fail.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    assert(server_rsa_key != NULL);
+
+    // get client public key - to send to server 
+    BIO *bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPublicKey(bio, server_rsa_key);
+
+    server_pub_key_len = BIO_get_mem_data(bio, &server_pub_key);
+    server_pub_key[server_pub_key_len] = '\0';
+    // printf("client public key: %s\n Length: %d\n", server_pub_key, server_pub_key_len);
+    // get client private key - to decrypt message
+
+}
 
 typedef struct
 {
@@ -24,6 +67,32 @@ typedef struct
 Client clients[MAX_CLIENTS];
 int client_number = 0;
 
+char *encrypt_message(char *message, RSA *rsa)
+{
+    int len = RSA_size(rsa);
+    char *encrypted = malloc(len + 1);
+    int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
+    if (ret == -1 || strcmp(encrypted,"")==0)
+    {
+        printf("RSA_public_encrypt failed\n");
+        return NULL;
+    }
+    return encrypted;
+}
+
+char *decrypt_message(char *message, RSA *rsa)
+{
+    int len = RSA_size(rsa);
+    char *decrypted = malloc(len + 1);
+    int ret = RSA_private_decrypt(len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
+    if (ret == -1 || strcmp(decrypted,"")==0)
+    {
+        printf("RSA_private_decrypt failed\n");
+        return NULL;
+    }
+    return decrypted;
+}
+
 void *connection_handle (void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
@@ -31,19 +100,38 @@ void *connection_handle (void *client_sockfd)
     char *client_name;
     int read_len;
     RSA *rsa;
+    char *enc_message;
+    char *dec_message;
 
-    // recive client public key
+    // recive client public key, send server public key
     for (int i=0 ; i < client_number; i++)
     {
-        if (clients[i].sockfd == client_sockfd)
+        if (clients[i].sockfd == socket)
         {
-            
+            recv(socket, buffer, BUFFER_SIZE, 0);
+            // clients[i].
+            printf("Client public key: %s\n", buffer);
+    
+            send(socket, server_pub_key, server_pub_key_len, 0);
+            printf("Public key send to client: %s\n", server_pub_key);
+            continue;
         }
     }
+
+    // recive client name
+    memset(buffer, sizeof(buffer), 0);
+    read_len = recv(socket, buffer, BUFFER_SIZE, 0);
+    buffer[read_len] = '\0';
+    dec_message = decrypt_message(buffer, server_rsa_key);
+    printf("Client name: \n%s\n", buffer);
+    
+
 }
 
 int main(int argc, char const *argv[])
 {
+    //generate server key
+    generate_key();
     // init clients array
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
@@ -90,7 +178,7 @@ int main(int argc, char const *argv[])
 
     while (1)
     {
-        pritnf("Waiting for new connection...\n");
+        printf("Waiting for new connection...\n");
         // accept connection
         client_sockfd = accept(server_sockfd, (struct sockaddr *)&server_address, (socklen_t *)&ser_addr_len);
         if (client_sockfd < 0)

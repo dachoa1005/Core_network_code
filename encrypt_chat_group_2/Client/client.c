@@ -9,12 +9,40 @@
 #include <assert.h>
 
 #define SERVER_IP "127.0.0.1"
-#define PORT "8080"
+#define PORT 8080
 #define BUFFER_SIZE 1024
 
 RSA *client_rsa_key;
 char *client_pub_key;
 int client_pub_key_len;
+RSA *server_pub_rsa = NULL; //use for encrpyt message to send to server
+
+
+char *encrypt_message(char *message, RSA *rsa)
+{
+    int len = RSA_size(rsa);
+    char *encrypted = malloc(len + 1);
+    int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
+    if (ret == -1)
+    {
+        printf("RSA_public_encrypt failed\n");
+        return NULL;
+    }
+    return encrypted;
+}
+
+char *decrypt_message(char *message, RSA *rsa)
+{
+    int len = RSA_size(rsa);
+    char *decrypted = malloc(len + 1);
+    int ret = RSA_private_decrypt(len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
+    if (ret == -1)
+    {
+        printf("RSA_private_decrypt failed\n");
+        return NULL;
+    }
+    return decrypted;
+}
 
 void generate_key()
 {
@@ -57,7 +85,7 @@ void *send_message(void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
     char message[1024];
-
+    char *enc_message;
     // enter name and check then send to server
     while (1)
     {
@@ -67,7 +95,9 @@ void *send_message(void *client_sockfd)
         if (strcmp(message, "") != 0)
             break;
     }
-    if (send(socket, message, strlen(message), 0) < 0)
+    enc_message = encrypt_message(message, server_pub_rsa);
+    printf("Encrypted message: \n%s\n", enc_message);
+    if (send(socket, enc_message, strlen(enc_message), 0) < 0)
     {
         perror("send");
         exit(1);
@@ -116,7 +146,7 @@ int main(int argc, char const *argv[])
     char buffer[BUFFER_SIZE];
     generate_key();
 
-    printf("client public key: %s\n Length: %d\n", client_pub_key, client_pub_key_len);
+    // printf("client public key: %s\n Length: %d\n", client_pub_key, client_pub_key_len);
 
     int client_sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (client_sockfd < 0)
@@ -141,13 +171,29 @@ int main(int argc, char const *argv[])
 
     // send public key to server
     send(client_sockfd, client_pub_key, strlen(client_pub_key), 0);
-    pritnf("Public key sent to server: %s\n", client_pub_key);
+    printf("Public key sent to server: %s\n", client_pub_key);
 
     // recv server's public key and store in server_pub_key
     int recv_len = recv(client_sockfd, buffer, sizeof(buffer), 0);
     char *server_pub_key = malloc(recv_len);
     strcpy(server_pub_key, buffer);
-    pritnf("Public key recive from server: %s\n", server_pub_key);
+    printf("Public key recive from server: %s\n", server_pub_key);
+    
+    // read public key
+    BIO *server_pub_keybio = BIO_new_mem_buf(server_pub_key, -1); 
+    if (server_pub_keybio == NULL)
+    {
+        printf("Failed to create public key BIO\n");
+        return EXIT_FAILURE;
+    }
+
+    server_pub_rsa = PEM_read_bio_RSAPublicKey(server_pub_keybio, &server_pub_rsa, NULL, NULL);
+    if (server_pub_rsa == NULL)
+    {
+        printf("Failed to create RSA key\n");
+        return EXIT_FAILURE;
+    }
+
     pthread_t send_thread, recv_thread;
     pthread_create(&send_thread, NULL, send_message, (void *)&client_sockfd);
     pthread_create(&recv_thread, NULL, recv_message, (void *)&client_sockfd);

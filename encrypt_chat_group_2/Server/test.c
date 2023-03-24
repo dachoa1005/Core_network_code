@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
                                 "QufomM28QZ6HCd8CxisSaUA/5GE3VgNyUaYRsrB8CLbU\n"
                                 "-----END RSA PRIVATE KEY-----\n";
 
-    RSA *pub_rsa = NULL;
+    RSA *server_pub_rsa = NULL;
 
     // read public key
     BIO *server_pub_keybio = BIO_new_mem_buf(server_pub_key, -1); 
@@ -66,8 +66,8 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    pub_rsa = PEM_read_bio_RSAPublicKey(server_pub_keybio, &pub_rsa, NULL, NULL);
-    if (pub_rsa == NULL)
+    server_pub_rsa = PEM_read_bio_RSAPublicKey(server_pub_keybio, &server_pub_rsa, NULL, NULL);
+    if (server_pub_rsa == NULL)
     {
         printf("Failed to create RSA");
         return EXIT_FAILURE;
@@ -77,7 +77,8 @@ int main(int argc, char *argv[])
     char *msg = "hello, world!";
     printf("Message to encrypt: %s\n", msg);
 
-    char *enc_msg = encrypt_message(msg, pub_rsa);
+    char *enc_msg;
+    enc_msg = encrypt_message(msg, server_pub_rsa);
     printf("Encrypt message: \n%s \n", enc_msg);
     printf("\n");
 
