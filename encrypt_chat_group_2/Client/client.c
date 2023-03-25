@@ -9,7 +9,7 @@
 #include <assert.h>
 
 #define SERVER_IP "127.0.0.1"
-#define PORT 8080
+#define PORT 8888
 #define BUFFER_SIZE 1024
 
 RSA *client_rsa_key;
@@ -41,6 +41,7 @@ char *decrypt_message(char *message, RSA *rsa)
         printf("RSA_private_decrypt failed\n");
         return NULL;
     }
+    decrypted[ret] = '\0'; // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
     return decrypted;
 }
 
@@ -67,7 +68,7 @@ void generate_key()
         printf("Create RSA key fail.\n");
         exit(EXIT_FAILURE);
     }
-
+    BN_free(bne);
     assert(client_rsa_key != NULL);
 
     // get client public key - to send to server 

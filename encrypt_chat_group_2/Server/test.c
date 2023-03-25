@@ -6,6 +6,50 @@
 #include <assert.h>
 #include <string.h>
 
+RSA *client_rsa_key;
+char *client_pub_key;
+int client_pub_key_len;
+RSA *server_pub_rsa = NULL; //use for encrpyt message to send to server
+
+
+void generate_key()
+{
+    int bits = 1024;
+    int ret = 0;
+    BIGNUM *bne = NULL;
+
+    unsigned long e = RSA_F4;
+
+    bne = BN_new();
+    ret = BN_set_word(bne, e);
+    if (ret != 1)
+    {
+        printf("Create RSA key fail.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    client_rsa_key = RSA_new();
+    ret = RSA_generate_key_ex(client_rsa_key, bits, bne, NULL);
+    if (ret != 1)
+    {
+        printf("Create RSA key fail.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    assert(client_rsa_key != NULL);
+
+    // get client public key - to send to server 
+    BIO *bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPublicKey(bio, client_rsa_key);
+
+    client_pub_key_len = BIO_get_mem_data(bio, &client_pub_key);
+    client_pub_key[client_pub_key_len] = '\0';
+    // printf("client public key: %s\n Length: %d\n", client_pub_key, client_pub_key_len);
+    // get client private key - to decrypt message
+
+}
+
+
 char *encrypt_message(char *message, RSA *rsa)
 {
     int len = RSA_size(rsa);
@@ -78,7 +122,7 @@ int main(int argc, char *argv[])
     printf("Message to encrypt: %s\n", msg);
 
     char *enc_msg;
-    enc_msg = encrypt_message(msg, server_pub_rsa);
+    enc_msg = encrypt_message(msg, client_rsa_key);
     printf("Encrypt message: \n%s \n", enc_msg);
     printf("\n");
 
@@ -98,7 +142,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    char *dec_msg = decrypt_message(enc_msg, client_rsa_prikey);
+    char *dec_msg = decrypt_message(enc_msg, client_rsa_key);
     printf("Decrypt message: %s\n", dec_msg);
     printf("\n");
     return 0;

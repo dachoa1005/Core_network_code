@@ -11,14 +11,16 @@
 #include <openssl/rsa.h>
 #include <assert.h>
 
-#define PORT 8080
+#define PORT 8888
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 1024
 
 
-RSA *server_rsa_key;
-char *server_pub_key;
-int server_pub_key_len;
+RSA *server_rsa_key = NULL;
+char *server_pub_key = NULL;
+char *server_pri_key = NULL;
+int server_pub_key_len = 0;
+int server_pri_key_len = 0;
 
 void generate_key()
 {
@@ -46,15 +48,22 @@ void generate_key()
 
     assert(server_rsa_key != NULL);
 
-    // get client public key - to send to server 
+    // get server public key - to send to server 
     BIO *bio = BIO_new(BIO_s_mem());
     PEM_write_bio_RSAPublicKey(bio, server_rsa_key);
 
     server_pub_key_len = BIO_get_mem_data(bio, &server_pub_key);
     server_pub_key[server_pub_key_len] = '\0';
-    // printf("client public key: %s\n Length: %d\n", server_pub_key, server_pub_key_len);
-    // get client private key - to decrypt message
+    printf("server public key: %s\n Length: %d\n", server_pub_key, server_pub_key_len);
+    // get server private key - to decrypt message
 
+    // get server private key - to decrypt message
+    bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPrivateKey(bio, server_rsa_key, NULL, NULL, 0, NULL, NULL);
+
+    server_pri_key_len = BIO_get_mem_data(bio, &server_pri_key);
+    server_pri_key[server_pri_key_len] = '\0';
+    printf("server private key: %s\n Length: %d\n", server_pri_key, server_pri_key_len);
 }
 
 typedef struct
@@ -72,7 +81,7 @@ char *encrypt_message(char *message, RSA *rsa)
     int len = RSA_size(rsa);
     char *encrypted = malloc(len + 1);
     int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
-    if (ret == -1 || strcmp(encrypted,"")==0)
+    if (ret == -1)
     {
         printf("RSA_public_encrypt failed\n");
         return NULL;
@@ -85,11 +94,12 @@ char *decrypt_message(char *message, RSA *rsa)
     int len = RSA_size(rsa);
     char *decrypted = malloc(len + 1);
     int ret = RSA_private_decrypt(len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
-    if (ret == -1 || strcmp(decrypted,"")==0)
+    if (ret == -1)
     {
         printf("RSA_private_decrypt failed\n");
         return NULL;
     }
+    decrypted[ret] = '\0'; // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
     return decrypted;
 }
 
@@ -123,7 +133,7 @@ void *connection_handle (void *client_sockfd)
     read_len = recv(socket, buffer, BUFFER_SIZE, 0);
     buffer[read_len] = '\0';
     dec_message = decrypt_message(buffer, server_rsa_key);
-    printf("Client name: \n%s\n", buffer);
+    printf("Client name: \n%s\n", dec_message);
     
 
 }
@@ -188,7 +198,7 @@ int main(int argc, char const *argv[])
         }
 
         clients[client_number].sockfd = client_sockfd;
-        client_number += 1;
+        client_number ++;
         printf("Client has socketfd: %d has connected.\n\n", client_sockfd);
 
         //create thread to handle each client
