@@ -36,12 +36,13 @@ void generate_key()
     assert(client_rsa_key != NULL);
 }
 
-
-char *encrypt_message(char *message, RSA *rsa)
+char *encrypt_message(char *message, int message_len, RSA *rsa)
 {
     int len = RSA_size(rsa);
-    char *encrypted = malloc(len + 1);
-    int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
+    char *encrypted = (char *)malloc(len + 1);
+    memset(encrypted, 0, len + 1);
+
+    int ret = RSA_public_encrypt(message_len, (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
     if (ret == -1)
     {
         printf("RSA_public_encrypt failed\n");
@@ -50,32 +51,43 @@ char *encrypt_message(char *message, RSA *rsa)
     return encrypted;
 }
 
-char *decrypt_message(char *message, RSA *rsa)
+char *decrypt_message(char *message, int message_len, RSA *rsa)
 {
     int len = RSA_size(rsa);
-    char *decrypted = malloc(len + 1);
-    int ret = RSA_private_decrypt(len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
+    char *decrypted = (char *)malloc(len + 1);
+    memset(decrypted, 0, len + 1);
+
+    int ret = RSA_private_decrypt(message_len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
     if (ret == -1)
     {
         printf("RSA_private_decrypt failed\n");
         return NULL;
     }
-    decrypted[ret] = '\0'; // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
+
+    // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
+    decrypted[ret] = '\0';
+
     return decrypted;
 }
+
 int main(int argc, char *argv[])
 {
     // message to encrypt
-    char *msg = "Hello, world!";
+    char *msg = "Hello\0 world!";
+    int msg_len = 14;
     printf("Message to encrypt: %s\n", msg);
 
     generate_key();
 
-    char *enc_msg = encrypt_message(msg, client_rsa_key);
-    printf("Encrypt message: \n%s\n", enc_msg);
+    char *enc_msg = encrypt_message(msg, msg_len, client_rsa_key);
+    printf("Encrypt message: \n");
+    for (int i = 0; i < RSA_size(client_rsa_key); i++)
+    {
+        printf("%02X", (unsigned char)enc_msg[i]);
+    }
     printf("\n");
 
-    char *dec_msg = decrypt_message(enc_msg, client_rsa_key);
+    char *dec_msg = decrypt_message(enc_msg, RSA_size(client_rsa_key), client_rsa_key);
     printf("Decrypt message: %s\n", dec_msg);
     printf("\n");
 

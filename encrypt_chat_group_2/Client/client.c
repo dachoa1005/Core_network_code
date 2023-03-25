@@ -9,7 +9,7 @@
 #include <assert.h>
 
 #define SERVER_IP "127.0.0.1"
-#define PORT 8888
+#define PORT 8889
 #define BUFFER_SIZE 1024
 
 RSA *client_rsa_key;
@@ -31,17 +31,17 @@ char *encrypt_message(char *message, RSA *rsa)
     return encrypted;
 }
 
-char *decrypt_message(char *message, RSA *rsa)
+char *decrypt_message(char *message, int message_len, RSA *rsa)
 {
     int len = RSA_size(rsa);
     char *decrypted = malloc(len + 1);
-    int ret = RSA_private_decrypt(len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
+    int ret = RSA_private_decrypt(message_len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
     if (ret == -1)
     {
         printf("RSA_private_decrypt failed\n");
         return NULL;
     }
-    decrypted[ret] = '\0'; // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
+    decrypted[ret] = '\0';
     return decrypted;
 }
 
@@ -111,7 +111,8 @@ void *send_message(void *client_sockfd)
         message[strlen(message) - 1] = '\0';
         if (strcmp(message, "") != 0)
         {
-            if (send(socket, message, strlen(message), 0) < 0)
+            enc_message = encrypt_message(message, server_pub_rsa);
+            if (send(socket, enc_message, strlen(enc_message), 0) < 0)
             {
                 perror("send");
                 exit(1);
@@ -124,6 +125,7 @@ void *recv_message(void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
     char message[1024];
+    char *dec_message;
     while (1)
     {
         int recv_len = recv(socket, message, 1024, 0);
@@ -137,8 +139,9 @@ void *recv_message(void *client_sockfd)
             printf("Server disconnected\n");
             exit(1);
         }
-        message[recv_len] = '\0';
-        printf("%s\n", message);
+        // message[recv_len] = '\0';
+        dec_message = decrypt_message(message, recv_len, client_rsa_key);
+        printf("%s\n", dec_message);
     }
 }
 
