@@ -54,7 +54,7 @@ char *decrypt_message(char *message, int message_len, RSA *rsa)
 }
 void generate_key()
 {
-    int bits = 512;
+    int bits = 1024;
     int ret = 0;
     BIGNUM *bne = NULL;
 
@@ -184,8 +184,9 @@ int main(int argc, char const *argv[])
     printf("Public key sent to server: %s\n", client_pub_key);
 
     // recv server's public key and store in server_pub_key
+    memset(buffer, 0, sizeof(buffer));
     int recv_len = recv(client_sockfd, buffer, sizeof(buffer), 0);
-    char *server_pub_key = malloc(recv_len);
+    char *server_pub_key = malloc(1024);
     strcpy(server_pub_key, buffer);
     printf("Public key recive from server: %s\n", server_pub_key);
 

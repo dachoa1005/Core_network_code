@@ -23,7 +23,7 @@ int server_pri_key_len = 0;
 
 void generate_key()
 {
-    int bits = 512;
+    int bits = 1024;
     int ret = 0;
     BIGNUM *bne = NULL;
 
@@ -182,14 +182,7 @@ void *connection_handle(void *client_sockfd)
             printf("%s\n", temp);
 
             // send to all other client
-            for (int i = 0; i < MAX_CLIENTS; i++)
-            {
-                if (clients[i].sockfd != socket && clients[i].sockfd != -1)
-                {
-                    enc_message = encrypt_message(temp, clients[i].rsa_pub_key);
-                    send(clients[i].sockfd, enc_message, strlen(enc_message), 0);
-                }
-            }
+            
         }
         else
         {
@@ -269,15 +262,36 @@ int main(int argc, char const *argv[])
             exit(EXIT_FAILURE);
         }
 
-        clients[client_number].sockfd = client_sockfd;
-        client_number++;
-        printf("Client has socketfd: %d has connected.\n\n", client_sockfd);
-
-        // create thread to handle each client
-        if (pthread_create(&threads[client_number], NULL, connection_handle, (void *)&client_sockfd) != 0)
+        // echo server
+        printf("New connection accepted.\n");
+        // recive client public key
+        recv(server_sockfd, buffer, BUFFER_SIZE, 0);
+        
+        // create rsa from client public key
+        BIO *bio = BIO_new_mem_buf(buffer, -1);
+        RSA *client_rsa_pub_key = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+       
+        // send server public key
+        send(server_sockfd, server_pub_key, server_pub_key_len, 0);
+            
+    
+        while(1)
         {
-            perror("pthread_create");
-            exit(EXIT_FAILURE);
+            // recv message
+            memset(buffer, sizeof(buffer), 0);
+            int read_len = recv(server_sockfd, buffer, BUFFER_SIZE, 0);
+            buffer[read_len] = '\0';
+            // decrypt message
+            char *dec_message = decrypt_message(buffer, RSA_size(server_rsa_key), server_rsa_key);
+            printf("Client: %s\n", dec_message);
+
+            // echo message
+            char temp[BUFFER_SIZE];
+            strcpy(temp, "Server: ");
+            strcat(temp, dec_message);
+            char *enc_message = encrypt_message(temp, client_rsa_pub_key);
+            send(server_sockfd, enc_message, strlen(enc_message), 0);
+
         }
     }
 
