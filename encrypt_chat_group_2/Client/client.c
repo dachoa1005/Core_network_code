@@ -9,7 +9,7 @@
 #include <assert.h>
 
 #define SERVER_IP "127.0.0.1"
-#define PORT 8888
+#define PORT 8889
 #define BUFFER_SIZE 1024
 
 RSA *client_rsa_key;
@@ -17,44 +17,59 @@ char *client_pub_key;
 int client_pub_key_len;
 RSA *server_pub_rsa = NULL; // use for encrpyt message to send to server
 
-char *encrypt_message(char *message, RSA *rsa)
+typedef struct
 {
-    int len = RSA_size(rsa);
-    char *encrypted = malloc(len + 1);
-    int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
-    if (ret == -1)
+    int len;
+    char encypted_message[1024];
+} Encrypted_message;
+
+int send_struct(int sockfd, Encrypted_message *message)
+{
+    char *buffer = (char *)message;
+    int total_bytes_sent = 0;
+    int bytes_left_to_send = sizeof(Encrypted_message);
+    int bytes_sent = 0;
+    while (total_bytes_sent < sizeof(Encrypted_message))
     {
-        printf("RSA_public_encrypt failed\n");
-        return NULL;
+        bytes_sent = send(sockfd, buffer + total_bytes_sent, bytes_left_to_send, 0);
+        if (bytes_sent == -1)
+        {
+            return -1;
+        }
+        total_bytes_sent += bytes_sent;
+        bytes_left_to_send -= bytes_sent;
     }
-    return encrypted;
+
+    return total_bytes_sent;
 }
 
-char *decrypt_message(char *message, int message_len, RSA *rsa)
+int recv_struct(int sockfd, Encrypted_message *message)
 {
-    int len = RSA_size(rsa);
-    char *decrypted = (char *)malloc(len + 1);
-    memset(decrypted, 0, len + 1);
-
-    if (message_len > RSA_size(rsa))
+    char *buffer = (char *)message;
+    int total_bytes_received =0;
+    int bytes_left_to_recv = sizeof(Encrypted_message);
+    int bytes_recv = 0;
+    while (total_bytes_received < sizeof(Encrypted_message))
     {
-        printf("Buffer is too small to hold encrypted message.\n");
-        return NULL;
+        bytes_recv = recv(sockfd, buffer + total_bytes_received, bytes_left_to_recv, 0);
+        if (bytes_recv == -1)
+        {
+            return -1;
+        }
+        else if (bytes_recv == 0)
+        {
+            return 0;
+        }
+        total_bytes_received += bytes_recv;
+        bytes_left_to_recv -= bytes_recv;
     }
-    int ret = RSA_private_decrypt(message_len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
-    if (ret != len)
-    {
-        printf("Decryption failed. Check the keypair and buffer.\n");
-        return NULL;
-    }
-    // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
-    decrypted[ret] = '\0';
-
-    return decrypted;
+       
+    return total_bytes_received;
 }
+
 void generate_key()
 {
-    int bits = 512;
+    int bits = 1024;
     int ret = 0;
     BIGNUM *bne = NULL;
 
@@ -91,38 +106,37 @@ void generate_key()
 void *send_message(void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
-    char message[1024];
-    char *enc_message;
+    char client_name[1024];
+    Encrypted_message message;
+    char input_message[1024];
     // enter name and check then send to server
     while (1)
     {
         printf("Enter your name: ");
-        fgets(message, 1024, stdin);
-        message[strlen(message) - 1] = '\0';
-        if (strcmp(message, "") != 0)
+        fgets(client_name, 1024, stdin);
+        client_name[strlen(client_name) - 1] = '\0';
+        if (strcmp(client_name, "") != 0)
             break;
     }
-    enc_message = encrypt_message(message, server_pub_rsa);
-    printf("Encrypted message: \n%s\n", enc_message);
-    if (send(socket, enc_message, strlen(enc_message), 0) < 0)
-    {
-        perror("send");
-        exit(1);
-    }
-
+    message.len = RSA_public_encrypt(strlen(client_name), client_name, message.encypted_message, server_pub_rsa, RSA_PKCS1_PADDING);
+    // printf("Encrypted message: \n");
+    // for (int i = 0; i < message.len; i++)
+    // {
+    //     printf("%02x", (unsigned char)message.encypted_message[i]);
+    // }
+    // printf("\n");
+    int bytes_sent = send_struct(socket, &message);
+    printf("%d bytes sent\n", bytes_sent);
     while (1)
     {
         // printf("Enter message: ");
-        fgets(message, 1024, stdin);
-        message[strlen(message) - 1] = '\0';
-        if (strcmp(message, "") != 0)
+        memset(input_message, sizeof(input_message), 0);
+        fgets(input_message, 1024, stdin);
+        input_message[strlen(input_message) - 1] = '\0';
+        if (strcmp(input_message, "") != 0)
         {
-            enc_message = encrypt_message(message, server_pub_rsa);
-            if (send(socket, enc_message, strlen(enc_message), 0) < 0)
-            {
-                perror("send");
-                exit(1);
-            }
+            message.len = RSA_public_encrypt(strlen(input_message), input_message, message.encypted_message, server_pub_rsa, RSA_PKCS1_PADDING);
+            send_struct(socket, &message);
         }
     }
 }
@@ -130,11 +144,12 @@ void *send_message(void *client_sockfd)
 void *recv_message(void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
-    char message[1024];
-    char *dec_message;
+    Encrypted_message message;
+    char dec_message[1024];
+    int dec_message_len;
     while (1)
     {
-        int recv_len = recv(socket, message, 1024, 0);
+        int recv_len = recv_struct(socket, &message);
         if (recv_len < 0)
         {
             perror("recv");
@@ -146,7 +161,7 @@ void *recv_message(void *client_sockfd)
             exit(1);
         }
         // message[recv_len] = '\0';
-        dec_message = decrypt_message(message, RSA_size(client_rsa_key), client_rsa_key);
+        dec_message_len = RSA_private_decrypt(message.len, message.encypted_message, dec_message, client_rsa_key, RSA_PKCS1_PADDING);
         printf("%s\n", dec_message);
     }
 }

@@ -6,74 +6,27 @@
 #include <assert.h>
 #include <string.h>
 
-RSA *client_rsa_key;
-char *client_pub_key;
-int client_pub_key_len;
-RSA *server_pub_rsa = NULL; //use for encrpyt message to send to server
-
-
-void generate_key()
+int encrypt_message(char *message, RSA *rsa, char *encrypted)
 {
-    int bits = 1024;
-    int ret = 0;
-    BIGNUM *bne = NULL;
-
-    unsigned long e = RSA_F4;
-
-    bne = BN_new();
-    ret = BN_set_word(bne, e);
-    if (ret != 1)
-    {
-        printf("Create RSA key fail.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    client_rsa_key = RSA_new();
-    ret = RSA_generate_key_ex(client_rsa_key, bits, bne, NULL);
-    if (ret != 1)
-    {
-        printf("Create RSA key fail.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    assert(client_rsa_key != NULL);
-
-    // get client public key - to send to server 
-    BIO *bio = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPublicKey(bio, client_rsa_key);
-
-    client_pub_key_len = BIO_get_mem_data(bio, &client_pub_key);
-    client_pub_key[client_pub_key_len] = '\0';
-    // printf("client public key: %s\n Length: %d\n", client_pub_key, client_pub_key_len);
-    // get client private key - to decrypt message
-
-}
-
-
-char *encrypt_message(char *message, RSA *rsa)
-{
-    int len = RSA_size(rsa);
-    char *encrypted = malloc(len + 1);
-    int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
+    int ret = -1;
+    int message_len = strlen(message);
+    int key_len = RSA_size(rsa);
+    ret = RSA_public_encrypt(message_len, (unsigned char*) message, (unsigned char*) encrypted, rsa, RSA_PKCS1_PADDING);
     if (ret == -1)
     {
         printf("RSA_public_encrypt failed\n");
-        return NULL;
     }
-    return encrypted;
+    return ret;
 }
 
-char *decrypt_message(char *message, RSA *rsa)
+int decrypt_message(char *message, int len, RSA *rsa, char *decrypted)
 {
-    int len = RSA_size(rsa);
-    char *decrypted = malloc(len + 1);
     int ret = RSA_private_decrypt(len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
     if (ret == -1)
     {
         printf("RSA_private_decrypt failed\n");
-        return NULL;
     }
-    return decrypted;
+    return ret;
 }
 
 int main(int argc, char *argv[])
@@ -103,15 +56,31 @@ int main(int argc, char *argv[])
     RSA *server_pub_rsa = NULL;
 
     // read public key
-    BIO *server_pub_keybio = BIO_new_mem_buf(server_pub_key, -1); 
-    if (server_pub_keybio == NULL)
+    BIO *server_pub_key_bio = BIO_new_mem_buf(server_pub_key, -1); 
+    if (server_pub_key_bio == NULL)
     {
         printf("Failed to create key BIO");
         return EXIT_FAILURE;
     }
 
-    server_pub_rsa = PEM_read_bio_RSAPublicKey(server_pub_keybio, &server_pub_rsa, NULL, NULL);
+    server_pub_rsa = PEM_read_bio_RSAPublicKey(server_pub_key_bio, &server_pub_rsa, NULL, NULL);
     if (server_pub_rsa == NULL)
+    {
+        printf("Failed to create RSA");
+        return EXIT_FAILURE;
+    }
+
+// read private key 
+    BIO *server_pri_keybio = BIO_new_mem_buf(server_private_key, -1);
+    if (server_pri_keybio == NULL)
+    {
+        printf("Failed to create private key BIO");
+        return EXIT_FAILURE;
+    }
+
+    RSA *server_pri_rsa = NULL;
+    server_pri_rsa = PEM_read_bio_RSAPrivateKey(server_pri_keybio, &server_pri_rsa, NULL, NULL);
+    if (server_pri_rsa == NULL)
     {
         printf("Failed to create RSA");
         return EXIT_FAILURE;
@@ -120,30 +89,22 @@ int main(int argc, char *argv[])
     // message to encrypt
     char *msg = "hello, world!";
     printf("Message to encrypt: %s\n", msg);
+    
+    //encrypt message
+    int enc_msg_size = 0;
+    char enc_msg[1024] = {0};
+    // printf("size of encrypted: %ld\n", sizeof(enc_msg));
 
-    char *enc_msg;
-    enc_msg = encrypt_message(msg, client_rsa_key);
+    enc_msg_size = RSA_public_encrypt(strlen(msg), msg, enc_msg, server_pub_rsa, RSA_PKCS1_PADDING);
     printf("Encrypt message: \n%s \n", enc_msg);
-    printf("\n");
+    printf("Encrypted message size: %d\n", enc_msg_size);
 
-    // read private key 
-    BIO *cli_pri_keybio = BIO_new_mem_buf(server_private_key, -1);
-    if (cli_pri_keybio == NULL)
-    {
-        printf("Failed to create private key BIO");
-        return EXIT_FAILURE;
-    }
-
-    RSA *client_rsa_prikey = NULL;
-    client_rsa_prikey = PEM_read_bio_RSAPrivateKey(cli_pri_keybio, &client_rsa_prikey, NULL, NULL);
-    if (client_rsa_prikey == NULL)
-    {
-        printf("Failed to create RSA");
-        return EXIT_FAILURE;
-    }
-
-    char *dec_msg = decrypt_message(enc_msg, client_rsa_key);
+    //decrypt message
+    char dec_msg[1024];
+    int dec_msg_size = 0;
+    dec_msg_size = RSA_private_decrypt(enc_msg_size, enc_msg, dec_msg, server_pri_rsa, RSA_PKCS1_PADDING);
     printf("Decrypt message: %s\n", dec_msg);
-    printf("\n");
+    printf("Decrypt message size: %d\n", dec_msg_size);
+    // RSA_free(client_rsa_key);
     return 0;
 }

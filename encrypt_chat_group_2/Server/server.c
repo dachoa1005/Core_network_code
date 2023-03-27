@@ -11,7 +11,7 @@
 #include <openssl/rsa.h>
 #include <assert.h>
 
-#define PORT 8888
+#define PORT 8889
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 1024
 
@@ -21,9 +21,22 @@ char *server_pri_key = NULL;
 int server_pub_key_len = 0;
 int server_pri_key_len = 0;
 
+typedef struct
+{
+    int sockfd;
+    char *name;
+    RSA *rsa_pub_key;
+} Client;
+
+typedef struct
+{
+    int len;
+    char encypted_message[1024];
+} Encrypted_message;
+
 void generate_key()
 {
-    int bits = 512;
+    int bits = 1024;
     int ret = 0;
     BIGNUM *bne = NULL;
 
@@ -65,92 +78,78 @@ void generate_key()
     printf("server private key: %s\n Length: %d\n", server_pri_key, server_pri_key_len);
 }
 
-typedef struct
+int send_struct(int sockfd, Encrypted_message *message)
 {
-    int sockfd;
-    char *name;
-    RSA *rsa_pub_key;
-} Client;
+    char *buffer = (char *)message;
+    int total_bytes_sent = 0;
+    int bytes_left_to_send = sizeof(Encrypted_message);
+    int bytes_sent = 0;
+    while (total_bytes_sent < sizeof(Encrypted_message))
+    {
+        bytes_sent = send(sockfd, buffer + total_bytes_sent, bytes_left_to_send, 0);
+        if (bytes_sent == -1)
+        {
+            return -1;
+        }
+        total_bytes_sent += bytes_sent;
+        bytes_left_to_send -= bytes_sent;
+    }
+
+    return total_bytes_sent;
+}
+
+int recv_struct(int sockfd, Encrypted_message *message)
+{
+    char *buffer = (char *)message;
+    int total_bytes_received = 0;
+    int bytes_left_to_recv = sizeof(Encrypted_message);
+    int bytes_recv = 0;
+    while (total_bytes_received < sizeof(Encrypted_message))
+    {
+        bytes_recv = recv(sockfd, buffer + total_bytes_received, bytes_left_to_recv, 0);
+        if (bytes_recv == -1)
+        {
+            return -1;
+        }
+        else if (bytes_recv == 0)
+        {
+            return 0;
+        }
+        total_bytes_received += bytes_recv;
+        bytes_left_to_recv -= bytes_recv;
+    }
+
+    return total_bytes_received;
+}
 
 Client clients[MAX_CLIENTS];
 int client_number = 0;
-
-char *encrypt_message(char *message, RSA *rsa)
-{
-    int len = RSA_size(rsa);
-    char *encrypted = malloc(len + 1);
-    int ret = RSA_public_encrypt(strlen(message), (unsigned char *)message, (unsigned char *)encrypted, rsa, RSA_PKCS1_PADDING);
-    if (ret == -1)
-    {
-        printf("RSA_public_encrypt failed\n");
-        return NULL;
-    }
-    return encrypted;
-}
-
-char *decrypt_message(char *message, int message_len, RSA *rsa)
-{
-    int len = RSA_size(rsa);
-    char *decrypted = (char *)malloc(len + 1);
-    memset(decrypted, 0, len + 1);
-
-    if (message_len > RSA_size(rsa))
-    {
-        printf("Buffer is too small to hold encrypted message.\n");
-        return NULL;
-    }
-    int ret = RSA_private_decrypt(message_len, (unsigned char *)message, (unsigned char *)decrypted, rsa, RSA_PKCS1_PADDING);
-    if (ret != len)
-    {
-        printf("Decryption failed. Check the keypair and buffer.\n");
-        return NULL;
-    }
-    // Đảm bảo kết thúc chuỗi giải mã bằng ký tự '\0'
-    decrypted[ret] = '\0';
-
-    return decrypted;
-}
 
 void *connection_handle(void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
     char buffer[BUFFER_SIZE];
+    char dec_message[BUFFER_SIZE];
     char *client_name;
     int read_len;
-    RSA *rsa;
-    char *enc_message;
-    char *dec_message;
     int len;
-    // recive client public key, send server public key
-    for (int i = 0; i < MAX_CLIENTS; i++)
-    {
-        if (clients[i].sockfd == socket)
-        {
-            // recive client public key
-            recv(socket, buffer, BUFFER_SIZE, 0);
-            // create rsa from client public key
-            BIO *bio = BIO_new_mem_buf(buffer, -1);
-            RSA *client_rsa_pub_key = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
-            clients[i].rsa_pub_key = client_rsa_pub_key;
-
-            // send server public key
-            send(socket, server_pub_key, server_pub_key_len, 0);
-            // printf("Public key send to client: %s\n", server_pub_key);
-            continue;
-        }
-    }
+    Encrypted_message message;
+    int dec_message_len = 0;
+    int bytes_recv;
+    char temp[BUFFER_SIZE];
 
     // recive client name
-    memset(buffer, sizeof(buffer), 0);
-    read_len = recv(socket, buffer, BUFFER_SIZE, 0);
-    // Tính độ dài của buffer nhận được
-    // int len = 0;
-    while (len < read_len && buffer[len] != '\0')
-    {
-        len++;
-    }
-    // buffer[read_len] = '\0';
-    dec_message = decrypt_message(buffer, RSA_size(server_rsa_key), server_rsa_key);
+    bytes_recv = recv_struct(socket, &message);
+    printf("%d bytes recv\n", bytes_recv);
+
+    // printf("Recv encrypted message: \n");
+    // for (int i = 0; i < message.len; i++)
+    // {
+    //     printf("%02x", (unsigned char)message.encypted_message[i]);
+    // }
+    // printf("\n");
+
+    dec_message_len = RSA_private_decrypt(message.len, message.encypted_message, dec_message, server_rsa_key, RSA_PKCS1_PADDING);
     printf("Client name: %s\n", dec_message);
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
@@ -160,7 +159,6 @@ void *connection_handle(void *client_sockfd)
             strcpy(clients[i].name, dec_message);
             client_name = malloc(strlen(dec_message) + 1);
             strcpy(client_name, dec_message);
-            continue;
         }
     }
 
@@ -169,29 +167,29 @@ void *connection_handle(void *client_sockfd)
     do
     {
         memset(buffer, sizeof(buffer), 0);
-        read_len = recv(socket, buffer, BUFFER_SIZE, 0);
-        buffer[read_len] = '\0';
+        read_len = recv_struct(socket, &message);
 
         if (read_len > 0)
         {
-            dec_message = decrypt_message(buffer, RSA_size(server_rsa_key), server_rsa_key);
-            char temp[BUFFER_SIZE];
+            memset(dec_message, sizeof(dec_message), 0);
+            dec_message_len = RSA_private_decrypt(message.len, message.encypted_message, dec_message, server_rsa_key, RSA_PKCS1_PADDING);
+            memset(temp, sizeof(temp), 0);
             strcpy(temp, client_name);
             strcat(temp, ": ");
             strcat(temp, dec_message);
             printf("%s\n", temp);
-
-            // send to all other client
+            
+            // encrypt message then send to all other client
             for (int i = 0; i < MAX_CLIENTS; i++)
             {
                 if (clients[i].sockfd != socket && clients[i].sockfd != -1)
                 {
-                    enc_message = encrypt_message(temp, clients[i].rsa_pub_key);
-                    send(clients[i].sockfd, enc_message, strlen(enc_message), 0);
+                    message.len = RSA_public_encrypt(strlen(temp), buffer, message.encypted_message, clients[i].rsa_pub_key, RSA_PKCS1_PADDING);
+                    send_struct(clients[i].sockfd, &message);
                 }
             }
         }
-        else
+        else if (read_len == 0)
         {
             printf("Client %s has left the chat room.\n", client_name);
             // remove client from clients array
@@ -207,6 +205,7 @@ void *connection_handle(void *client_sockfd)
             }
         }
     } while (read_len > 0);
+
     return 0;
 }
 
@@ -272,6 +271,24 @@ int main(int argc, char const *argv[])
         clients[client_number].sockfd = client_sockfd;
         client_number++;
         printf("Client has socketfd: %d has connected.\n\n", client_sockfd);
+
+        // recive client public key, send server public key
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            if (clients[i].sockfd == client_sockfd)
+            {
+                // recive client public key
+                recv(client_sockfd, buffer, BUFFER_SIZE, 0);
+                // create rsa from client public key
+                BIO *bio = BIO_new_mem_buf(buffer, -1);
+                RSA *client_rsa_pub_key = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+                clients[i].rsa_pub_key = client_rsa_pub_key;
+
+                // send server public key
+                send(client_sockfd, server_pub_key, server_pub_key_len, 0);
+                // printf("Public key send to client: %s\n", server_pub_key);
+            }
+        }
 
         // create thread to handle each client
         if (pthread_create(&threads[client_number], NULL, connection_handle, (void *)&client_sockfd) != 0)
