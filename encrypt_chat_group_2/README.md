@@ -8,6 +8,7 @@
 
 ## Giải thích code
 ### Server
+** D**
 1. Định nghĩa struct `client` chứa thông tin của client:
 ```c
 typedef struct
