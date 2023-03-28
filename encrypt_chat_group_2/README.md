@@ -8,8 +8,8 @@
 
 ## Giải thích code
 ### Server
-** Server sẽ luôn listen trên port cố định, mỗi khi có 1 client mới kết nối đến, lưu client sockfd  vào mảng `clients`, sau đó nhận public key của client và gửi public key của server cho client.\
-Sử dụng private key của server để giải mã tin nhắn nhận được từ client, tiếp tục chuyển tiếp tin nhắn cho các client còn lại sử dụng public key của từng client để mã hóa tin nhắn. **
+**Server sẽ luôn listen trên port cố định, mỗi khi có 1 client mới kết nối đến, lưu client sockfd  vào mảng `clients`, sau đó nhận public key của client và gửi public key của server cho client.**
+**Sử dụng private key của server để giải mã tin nhắn nhận được từ client, tiếp tục chuyển tiếp tin nhắn cho các client còn lại sử dụng public key của từng client để mã hóa tin nhắn.**
 
 1. Định nghĩa struct `client` chứa thông tin của client:
 ```c
@@ -156,7 +156,7 @@ int recv_struct(int sockfd, Encrypted_message *message)
 ```
 
 ### Client
-** Client sau khi kết nối đến server sẽ gửi public key của client và nhận public key của server, tạo đồng thời 2 thread để gửi và nhận tin nhắn. Tin nhắn được gửi sử dụng public key của server để mã hóa và giải mã tin nhắn nhận được sử dụng private key của client. **
+**Client sau khi kết nối đến server sẽ gửi public key của client và nhận public key của server, tạo đồng thời 2 thread để gửi và nhận tin nhắn. Tin nhắn được gửi sử dụng public key của server để mã hóa và giải mã tin nhắn nhận được sử dụng private key của client.**
 
 1. Định nghĩa struct `Encrypted_message` chứa thông tin của tin nhắn (tương tự ở server).
 
