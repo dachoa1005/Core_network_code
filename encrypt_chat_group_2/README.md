@@ -26,10 +26,10 @@ typedef struct
     char encypted_message[1024];
 } Encrypted_message;
 ```
-- `len`: độ dài của tin nhắn đã được mã hóa.\
-- `encypted_message`: tin nhắn đã được mã hóa.\
+- `len`: độ dài của tin nhắn đã được mã hóa.
+- `encypted_message`: tin nhắn đã được mã hóa.
 
-3. Tạo 1 mảng `clients` chứa các client đang kết nối, khởi tạo mảng với mỗi client có sockfd = -1, name = NULL, rsa_pub_key = NULL
+3. Tạo 1 mảng `clients` chứa các client đang kết nối, khởi tạo mảng với mỗi client có `sockfd = -1`, `name = NULL`, `rsa_pub_key = NULL`
 
 4. Generate RSA key cho server:
 ```c
@@ -55,9 +55,9 @@ int bits = 1024;
         exit(EXIT_FAILURE);
     }
 ```
-- bits: độ dài của key.\
-- bne: số nguyên tố dùng để mã hóa.\
-- server_rsa_key: key được tạo ra để mã hóa/giải mã (chứa cặp public key, private key).\
+- bits: độ dài của key.
+- bne: số nguyên tố dùng để mã hóa.
+- server_rsa_key: key được tạo ra để mã hóa/giải mã (chứa cặp public key, private key).
 
 5. Lưu server public key dưới dạng xâu (để gửi cho mỗi client)
 ```c
@@ -67,9 +67,9 @@ bio = BIO_new(BIO_s_mem());
     server_pri_key_len = BIO_get_mem_data(bio, &server_pri_key);
     server_pri_key[server_pri_key_len] = '\0';
 ```
-- Hàm `BIO_new(BIO_s_mem())` tạo ra 1 BIO mới để lưu server public key, BIO_s_mem() là 1 loại BIO dùng để lưu trữ dữ liệu trong bộ nhớ.\
-- Hàm `PEM_write_bio_RSAPrivateKey` lưu server public key vào BIO.\
-- Hàm `BIO_get_mem_data` lấy dữ liệu từ BIO và lưu vào biến `server_pri_key`.\
+- Hàm `BIO_new(BIO_s_mem())` tạo ra 1 BIO mới để lưu server public key, BIO_s_mem() là 1 loại BIO dùng để lưu trữ dữ liệu trong bộ nhớ.
+- Hàm `PEM_write_bio_RSAPrivateKey` lưu server public key vào BIO.
+- Hàm `BIO_get_mem_data` lấy dữ liệu từ BIO và lưu vào biến `server_pri_key`.
 
 6. Định nghĩa các hàm send_struct, recv_struct để gửi, nhận struct qua socket:
 ```c
@@ -127,27 +127,29 @@ int recv_struct(int sockfd, Encrypted_message *message)
         - Dùng struct `Encrypted_message` để nhận tên (username) của client, giải mã tên đó và lưu vào mảng `clients`.
 ```C
         for (int i = 0; i < MAX_CLIENTS; i++)
-    {
-        if (clients[i].sockfd == socket)
         {
-            clients[i].name = malloc(strlen(dec_message) + 1);
-            strcpy(clients[i].name, dec_message);
-            client_name = malloc(strlen(dec_message) + 1);
-            strcpy(client_name, dec_message);
-        }
-    }
-```
-        - Dùng vòng lặp do...while để nhận tin nhắn từ client, giải mã bằng server private key sau đó mã hóa lại bằng public key của mỗi client rồi chuyển tiếp đến các clients đang kết nối đến server (sử dụng sockfd của mỗi client được lưu trong mảng clients).
-```c
-for (int i = 0; i < MAX_CLIENTS; i++)
+            if (clients[i].sockfd == socket)
             {
-                if (clients[i].sockfd != socket && clients[i].sockfd != -1)
-                {
-                    Encrypted_message send_message = {0};
-                    send_message.len = RSA_public_encrypt(strlen(temp), temp, send_message.encypted_message, clients[i].rsa_pub_key, RSA_PKCS1_PADDING);
-                    send_struct(clients[i].sockfd, &send_message);
-                }
+                clients[i].name = malloc(strlen(dec_message) + 1);
+                strcpy(clients[i].name, dec_message);
+                client_name = malloc(strlen(dec_message) + 1);
+                strcpy(client_name, dec_message);
             }
+        }
+```
+
+        - Dùng vòng lặp do...while để nhận tin nhắn từ client, giải mã bằng server private key sau đó mã hóa lại bằng public key của mỗi client rồi chuyển tiếp đến các clients đang kết nối đến server (sử dụng sockfd của mỗi client được lưu trong mảng clients).
+
+```c
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            if (clients[i].sockfd != socket && clients[i].sockfd != -1)
+            {
+                Encrypted_message send_message = {0};
+                send_message.len = RSA_public_encrypt(strlen(temp), temp, send_message.encypted_message, clients[i].rsa_pub_key, RSA_PKCS1_PADDING);
+                send_struct(clients[i].sockfd, &send_message);
+            }
+        }
 ```
 
 ### Client
@@ -178,7 +180,7 @@ int recv_len = recv(client_sockfd, buffer, sizeof(buffer), 0);
     }
 ```
 4. Tạo 2 thread mới để xử lý việc gửi tin nhắn và nhận tin nhắn:
-    - Hàm xử lý việc gửi tin nhắn:
+    - Thread xử lý việc gửi tin nhắn:
         - Nhập tên của client. Mã hóa tên đó bằng public key của server. Gửi tên đã mã hóa đến server (sử dụng struct `Encrypted_message`).
         - Nhập tin nhắn và mã hóa tin nhắn đó bằng public key của server.
         - Gửi tin nhắn đã mã hóa đến server.
@@ -218,10 +220,12 @@ void *send_message(void *client_sockfd)
     }
 }
 ```
-    - Hàm xử lý việc nhận tin nhắn:
+
+    - Thread xử lý việc nhận tin nhắn:
         - Nhận tin nhắn từ server, giải mã tin nhắn đó bằng private key của client.
         - In tin nhắn ra màn hình.
         - Dùng vòng lặp while(1) để liên tục nhận tin nhắn từ server.
+
 ```c
 void *recv_message(void *client_sockfd)
 {
