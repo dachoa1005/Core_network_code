@@ -23,9 +23,9 @@ typedef struct
     char encypted_message[1024];
 } Encrypted_message;
 
-int send_struct(int sockfd, Encrypted_message *message)
+int send_struct(int sockfd, Encrypted_message *message_to_send)
 {
-    char *buffer = (char *)message;
+    char *buffer = (char *)message_to_send;
     int total_bytes_sent = 0;
     int bytes_left_to_send = sizeof(Encrypted_message);
     int bytes_sent = 0;
@@ -43,10 +43,10 @@ int send_struct(int sockfd, Encrypted_message *message)
     return total_bytes_sent;
 }
 
-int recv_struct(int sockfd, Encrypted_message *message)
+int recv_struct(int sockfd, Encrypted_message *message_to_recv)
 {
-    char *buffer = (char *)message;
-    int total_bytes_received =0;
+    char *buffer = (char *)message_to_recv;
+    int total_bytes_received = 0;
     int bytes_left_to_recv = sizeof(Encrypted_message);
     int bytes_recv = 0;
     while (total_bytes_received < sizeof(Encrypted_message))
@@ -63,7 +63,7 @@ int recv_struct(int sockfd, Encrypted_message *message)
         total_bytes_received += bytes_recv;
         bytes_left_to_recv -= bytes_recv;
     }
-       
+
     return total_bytes_received;
 }
 
@@ -130,13 +130,21 @@ void *send_message(void *client_sockfd)
     while (1)
     {
         // printf("Enter message: ");
-        memset(input_message, sizeof(input_message), 0);
         fgets(input_message, 1024, stdin);
         input_message[strlen(input_message) - 1] = '\0';
         if (strcmp(input_message, "") != 0)
         {
+            // clear buffer
+            Encrypted_message message = {0};
+            // write new buffer
             message.len = RSA_public_encrypt(strlen(input_message), input_message, message.encypted_message, server_pub_rsa, RSA_PKCS1_PADDING);
             send_struct(socket, &message);
+            // printf("Encrypted message: \n");
+            // for (int i = 0; i < message.len; i++)
+            // {
+            //     printf("%02x", (unsigned char)message.encypted_message[i]);
+            // }
+            // printf("\n");
         }
     }
 }
@@ -144,12 +152,13 @@ void *send_message(void *client_sockfd)
 void *recv_message(void *client_sockfd)
 {
     int socket = *(int *)client_sockfd;
-    Encrypted_message message;
     char dec_message[1024];
     int dec_message_len;
     while (1)
     {
-        int recv_len = recv_struct(socket, &message);
+        Encrypted_message received_message = {0};
+        memset(dec_message, 0, 1024);
+        int recv_len = recv_struct(socket, &received_message);
         if (recv_len < 0)
         {
             perror("recv");
@@ -160,8 +169,13 @@ void *recv_message(void *client_sockfd)
             printf("Server disconnected\n");
             exit(1);
         }
-        // message[recv_len] = '\0';
-        dec_message_len = RSA_private_decrypt(message.len, message.encypted_message, dec_message, client_rsa_key, RSA_PKCS1_PADDING);
+        // printf("Encrypted message: \n");
+        // for (int i = 0; i < received_message.len; i++)
+        // {
+        //     printf("%02x", (unsigned char)received_message.encypted_message[i]);
+        // }
+        // printf("\n");
+        dec_message_len = RSA_private_decrypt(received_message.len, received_message.encypted_message, dec_message, client_rsa_key, RSA_PKCS1_PADDING);
         printf("%s\n", dec_message);
     }
 }

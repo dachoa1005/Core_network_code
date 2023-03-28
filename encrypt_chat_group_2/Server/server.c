@@ -100,6 +100,7 @@ int send_struct(int sockfd, Encrypted_message *message)
 
 int recv_struct(int sockfd, Encrypted_message *message)
 {
+
     char *buffer = (char *)message;
     int total_bytes_received = 0;
     int bytes_left_to_recv = sizeof(Encrypted_message);
@@ -139,6 +140,7 @@ void *connection_handle(void *client_sockfd)
     char temp[BUFFER_SIZE];
 
     // recive client name
+
     bytes_recv = recv_struct(socket, &message);
     printf("%d bytes recv\n", bytes_recv);
 
@@ -166,26 +168,34 @@ void *connection_handle(void *client_sockfd)
 
     do
     {
-        memset(buffer, sizeof(buffer), 0);
-        read_len = recv_struct(socket, &message);
+        Encrypted_message recv_message = {0};
+        read_len = recv_struct(socket, &recv_message);
 
         if (read_len > 0)
         {
-            memset(dec_message, sizeof(dec_message), 0);
-            dec_message_len = RSA_private_decrypt(message.len, message.encypted_message, dec_message, server_rsa_key, RSA_PKCS1_PADDING);
-            memset(temp, sizeof(temp), 0);
+            memset(dec_message, 0, sizeof(dec_message));
+            memset(temp, 0, sizeof(temp));
+
+            dec_message_len = RSA_private_decrypt(recv_message.len, recv_message.encypted_message, dec_message, server_rsa_key, RSA_PKCS1_PADDING);
             strcpy(temp, client_name);
             strcat(temp, ": ");
             strcat(temp, dec_message);
             printf("%s\n", temp);
-            
+
             // encrypt message then send to all other client
             for (int i = 0; i < MAX_CLIENTS; i++)
             {
                 if (clients[i].sockfd != socket && clients[i].sockfd != -1)
                 {
-                    message.len = RSA_public_encrypt(strlen(temp), buffer, message.encypted_message, clients[i].rsa_pub_key, RSA_PKCS1_PADDING);
-                    send_struct(clients[i].sockfd, &message);
+                    Encrypted_message send_message = {0};
+                    send_message.len = RSA_public_encrypt(strlen(temp), temp, send_message.encypted_message, clients[i].rsa_pub_key, RSA_PKCS1_PADDING);
+                    send_struct(clients[i].sockfd, &send_message);
+                    // printf("Encrypted message: \n");
+                    // for (int i = 0; i < send_message.len; i++)
+                    // {
+                    //     printf("%02x", (unsigned char)send_message.encypted_message[i]);
+                    // }
+                    // printf("\n");
                 }
             }
         }
